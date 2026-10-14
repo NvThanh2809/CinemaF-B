@@ -1,0 +1,5 @@
+# Thư viện cần cài:  pip install -r requirements.txt
+pyodbc>=5.0        # kết nối SQL Server (cần thêm "ODBC Driver 18 for SQL Server" của Microsoft)
+
+# Có sẵn trong Python, không cần cài:
+#   tkinter (giao diện; Linux: sudo apt install python3-tk), sqlite3 (chỉ dùng khi chạy test)
