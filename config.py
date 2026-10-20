@@ -17,10 +17,10 @@ DB_ENGINE = os.getenv("CINEMA_DB_ENGINE", "sqlserver")
 # SQL Server. Đây chỉ là giá trị MẶC ĐỊNH dùng chung cho cả nhóm, KHÔNG ghi tên máy hay mật khẩu thật vào đây.
 # Tên server, tài khoản và mật khẩu thật của từng máy khai báo trong config_local.py (không bị đẩy lên Git).
 # Mặc định: SQL Server Express cài mặc định (localhost\SQLEXPRESS) + Windows Authentication (không cần mật khẩu).
-DB_SERVER = os.getenv("CINEMA_DB_SERVER", r"LAPTOP-C2U5EVHV\SQLEXPRESS01")
+DB_SERVER = os.getenv("CINEMA_DB_SERVER", r".\SQLEXPRESS01")
 DB_NAME = os.getenv("CINEMA_DB_NAME", "CinemaFnB")      # tự tạo nếu chưa có
-DB_USER = os.getenv("CINEMA_DB_USER", "sa")               # để trống = Windows Authentication
-DB_PASSWORD = os.getenv("CINEMA_DB_PASSWORD", "Warehouse@123")
+DB_USER = os.getenv("CINEMA_DB_USER", "")               # để trống = Windows Authentication
+DB_PASSWORD = os.getenv("CINEMA_DB_PASSWORD", "")
 DB_DRIVER = os.getenv("CINEMA_DB_DRIVER", "")           # để trống = tự chọn driver ODBC mới nhất
 
 SQLITE_PATH = Path(os.getenv("CINEMA_SQLITE_PATH", BASE_DIR / "data" / "cinema_fnb.db"))
