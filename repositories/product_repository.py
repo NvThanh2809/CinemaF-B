@@ -1,12 +1,10 @@
 """Truy vấn SQL cho danh mục / sản phẩm / biến thể.
 
 Người phụ trách: THÀNH VIÊN A.
-Repository chỉ chứa SQL và ánh xạ dòng -> model. KHÔNG viết nghiệp vụ ở đây.
-Gợi ý: self._db.query(sql, params), self._db.execute(sql, params); luôn dùng tham số `?`.
 """
-from models.product import Product  # noqa: F401  (A dùng khi code)
-from models.product_variant import ProductVariant  # noqa: F401
-from utils.exceptions import InsufficientStockError  # noqa: F401
+from models.product import Product
+from models.product_variant import ProductVariant
+from utils.exceptions import InsufficientStockError
 
 
 class ProductRepository:
@@ -14,21 +12,53 @@ class ProductRepository:
         self._db = db
 
     def search_products(self, keyword):
-        """TODO (A): tìm sản phẩm theo tên HOẶC tên danh mục, không phân biệt dấu/hoa thường.
+        """Tìm sản phẩm theo tên HOẶC tên danh mục, không phân biệt dấu/hoa thường.
 
-        Trả về list[Product] (có category_name), sắp xếp theo danh mục rồi tên.
-        Gợi ý: Database.like_no_accent("p.name") + Database.like_param(keyword) lo sẵn khác biệt SQL Server/SQLite.
+        Trả về list[Product], sắp xếp theo tên danh mục rồi tên sản phẩm.
         """
-        raise NotImplementedError("TODO (A): ProductRepository.search_products")
+        keyword = (keyword or "").strip()
+        cond_p = self._db.like_no_accent("p.name")
+        cond_c = self._db.like_no_accent("c.name")
+
+        sql = f"""
+            SELECT p.id, p.category_id, p.name, c.name AS category_name
+            FROM products p
+            JOIN categories c ON p.category_id = c.id
+            WHERE {cond_p} OR {cond_c}
+            ORDER BY c.name, p.name
+        """
+        param = self._db.like_param(keyword)
+        rows = self._db.query(sql, (param, param))
+        return [Product(r["id"], r["category_id"], r["name"], r["category_name"]) for r in rows]
 
     def get_variants(self, product_id):
-        """TODO (A): trả về list[ProductVariant] của một sản phẩm, sắp xếp theo giá tăng dần."""
-        raise NotImplementedError("TODO (A): ProductRepository.get_variants")
-
-    def decrease_stock(self, variant_id, quantity):
-        """TODO (A): trừ tồn kho (B gọi hàm này khi thanh toán, bên trong db.transaction()).
-
-        UPDATE có điều kiện `stock >= ?` để kho không bao giờ âm; nếu không cập nhật được dòng nào
-        thì ném InsufficientStockError với thông báo tiếng Việt nêu rõ tên hàng, size, tồn hiện có.
+        """Trả về list[ProductVariant] của sản phẩm, sắp xếp theo giá tăng dần."""
+        sql = """
+            SELECT id, product_id, size, price, stock
+            FROM product_variants
+            WHERE product_id = ?
+            ORDER BY price ASC
         """
-        raise NotImplementedError("TODO (A): ProductRepository.decrease_stock")
+        rows = self._db.query(sql, (product_id,))
+        return [ProductVariant(r["id"], r["product_id"], r["size"], r["price"], r["stock"]) for r in rows]
+
+    def decrease_stock(self, variant_id, qty):
+        """Trừ tồn kho có điều kiện `stock >= ?`. Ném InsufficientStockError nếu thiếu hàng."""
+        sql = "UPDATE product_variants SET stock = stock - ? WHERE id = ? AND stock >= ?"
+        rowcount = self._db.execute(sql, (qty, variant_id, qty))
+
+        if rowcount == 0:
+            # Truy vấn thông tin chi tiết để báo lỗi tiếng Việt thân thiện
+            info_sql = """
+                SELECT p.name, v.size, v.stock
+                FROM product_variants v
+                JOIN products p ON v.product_id = p.id
+                WHERE v.id = ?
+            """
+            row = self._db.query_one(info_sql, (variant_id,))
+            if row:
+                raise InsufficientStockError(
+                    f"Mặt hàng '{row['name']}' (size {row['size']}) chỉ còn {row['stock']} sản phẩm trong kho (cần {qty})."
+                )
+            raise InsufficientStockError(f"Biến thể mã {variant_id} không tồn tại.")
+        return True

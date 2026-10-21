@@ -30,6 +30,12 @@ def format_date(d):
     return d.strftime(DISPLAY_DATE)
 
 
+def format_datetime(value):
+    """datetime hoặc chuỗi ISO -> 'dd/mm/yyyy HH:MM:SS'."""
+    dt = to_datetime(value)
+    return dt.strftime(DISPLAY_DATETIME) if dt else ""
+
+
 def day_bounds(start, end):
     """[start 00:00, end+1 00:00) dưới dạng 2 chuỗi tham số SQL."""
     lo = datetime.combine(start, datetime.min.time())
