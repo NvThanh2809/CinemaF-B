@@ -1,36 +1,46 @@
-"""Test cho utils/invoice_printer.py (nội dung hóa đơn .txt).
-
-Người phụ trách: THÀNH VIÊN B.
-Dựng một Order thủ công với models.order.Order và OrderDetail rồi gọi render_invoice_text.
-
-Cách làm: mỗi test bên dưới là MỘT hành vi cần kiểm tra. Viết xong test nào thì xóa dòng @TODO của test đó
-và thay phần mô tả bằng code kiểm tra thật. Chạy: python -m unittest discover -s tests -t .
-"""
+import tempfile
 import unittest
+from datetime import datetime
+from pathlib import Path
+from unittest import mock
 
-from tests.helpers import Env
+from models.order import Order
+from models.order_detail import OrderDetail
+from utils import invoice_printer
+from utils.invoice_printer import render_invoice_text, save_invoice
 
-TODO = unittest.skip("TODO (B): chưa viết test này")
+
+def make_order(discount_amount=10000, discount_code="GIAM10"):
+    return Order(
+        id=7,
+        created_at=datetime(2026, 10, 9, 16, 40, 0),
+        total_amount=100000,
+        discount_amount=discount_amount,
+        final_amount=100000 - discount_amount,
+        discount_code=discount_code,
+        seller_name="Lê Thu Ngân",
+        details=[OrderDetail(2, "Bỏng ngô phô mai", "L", 50000, 2)],
+    )
 
 
 class InvoiceTest(unittest.TestCase):
-    def setUp(self):
-        self.env = Env()
-
-    def tearDown(self):
-        self.env.close()
-
-    @TODO
     def test_invoice_contains_all_lines(self):
-        """Hóa đơn có số HĐ, ngày giờ, từng dòng hàng, tổng tiền, dòng giảm giá kèm mã, số tiền thanh toán."""
+        text = render_invoice_text(make_order())
+        for expected in ("000007", "09/10/2026 16:40:00", "Lê Thu Ngân", "Bỏng ngô phô mai (L)",
+                         "2 x 50.000đ", "100.000đ", "GIAM10", "-10.000đ", "90.000đ"):
+            self.assertIn(expected, text)
 
-    @TODO
     def test_invoice_without_discount_has_no_discount_line(self):
-        """Đơn không dùng mã thì không in dòng 'Giảm giá'."""
+        text = render_invoice_text(make_order(discount_amount=0, discount_code=None))
+        self.assertNotIn("Giảm giá", text)
+        self.assertIn("THANH TOÁN:", text)
 
-    @TODO
     def test_save_invoice_writes_utf8_file(self):
-        """save_invoice ghi file hoadon_<id>.txt (UTF-8, giữ đủ dấu tiếng Việt) và trả về đường dẫn."""
+        with tempfile.TemporaryDirectory() as folder:
+            with mock.patch.object(invoice_printer, "INVOICE_DIR", Path(folder)):
+                path = save_invoice(make_order())
+            self.assertEqual(path.name, "hoadon_000007.txt")
+            self.assertIn("Bỏng ngô phô mai", path.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

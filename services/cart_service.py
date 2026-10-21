@@ -1,69 +1,67 @@
-"""Hóa đơn tạm (giỏ hàng) đang lập, chưa lưu DB. Mỗi đơn tối đa 1 mã ưu đãi.
-
-Người phụ trách: THÀNH VIÊN B.
-Lớp này KHÔNG đụng DB, nên viết và test độc lập được ngay (xem tests/test_cart_service.py).
-"""
+from utils.exceptions import DiscountError
 
 
 class CartService:
     def __init__(self):
-        self._items = []      # list[OrderDetail]
-        self._discount = None  # Discount hoặc None
+        self._items = []
+        self._discount = None
 
-    # ---- mặt hàng ----
     @property
     def items(self):
-        """TODO (B): trả về BẢN SAO danh sách (đóng gói), không trả self._items."""
-        raise NotImplementedError("TODO (B): CartService.items")
+        return list(self._items)
 
     @property
     def is_empty(self):
-        raise NotImplementedError("TODO (B): CartService.is_empty")
+        return not self._items
 
     def add_item(self, detail):
-        """TODO (B): thêm dòng; cùng variant_id thì cộng dồn số lượng; số lượng <= 0 thì ném ValueError."""
-        raise NotImplementedError("TODO (B): CartService.add_item")
+        if detail.quantity <= 0:
+            raise ValueError("Số lượng phải lớn hơn 0")
+        for item in self._items:
+            if item.variant_id == detail.variant_id:
+                item.quantity += detail.quantity
+                return
+        self._items.append(detail)
 
     def update_quantity(self, index, quantity):
-        """TODO (B): đặt lại số lượng của dòng; quantity <= 0 thì xóa dòng."""
-        raise NotImplementedError("TODO (B): CartService.update_quantity")
+        if quantity <= 0:
+            self.remove_item(index)
+        else:
+            self._items[index].quantity = quantity
 
     def remove_item(self, index):
-        raise NotImplementedError("TODO (B): CartService.remove_item")
+        del self._items[index]
 
     def clear(self):
-        """TODO (B): xóa hết dòng và bỏ luôn mã ưu đãi."""
-        raise NotImplementedError("TODO (B): CartService.clear")
+        self._items.clear()
+        self._discount = None
 
-    # ---- tiền ----
     @property
     def total(self):
-        """TODO (B): tổng thành tiền các dòng (trước giảm giá)."""
-        raise NotImplementedError("TODO (B): CartService.total")
+        return sum(item.subtotal for item in self._items)
 
-    # ---- mã ưu đãi ----
     @property
     def discount(self):
-        raise NotImplementedError("TODO (B): CartService.discount")
+        return self._discount
 
     @property
     def discount_still_valid(self):
-        """TODO (B): True khi chưa có mã, hoặc mã vẫn đủ điều kiện với tổng tiền hiện tại."""
-        raise NotImplementedError("TODO (B): CartService.discount_still_valid")
+        return self._discount is None or self._discount.is_applicable(self.total)
 
     def apply_discount(self, discount):
-        """TODO (B): áp mã (thay mã cũ nếu có - chỉ 1 mã/đơn); chưa đủ điều kiện thì ném DiscountError."""
-        raise NotImplementedError("TODO (B): CartService.apply_discount")
+        if not discount.is_applicable(self.total):
+            raise DiscountError("Đơn hàng chưa đủ điều kiện dùng mã này")
+        self._discount = discount
 
     def remove_discount(self):
-        raise NotImplementedError("TODO (B): CartService.remove_discount")
+        self._discount = None
 
     @property
     def discount_amount(self):
-        """TODO (B): số tiền giảm; 0 nếu không có mã hoặc mã không còn hợp lệ."""
-        raise NotImplementedError("TODO (B): CartService.discount_amount")
+        if self._discount is None or not self.discount_still_valid:
+            return 0
+        return self._discount.calculate(self.total)
 
     @property
     def final_amount(self):
-        """TODO (B): total - discount_amount."""
-        raise NotImplementedError("TODO (B): CartService.final_amount")
+        return self.total - self.discount_amount

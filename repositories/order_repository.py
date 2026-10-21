@@ -16,12 +16,22 @@ class OrderRepository:
         self._db = db
 
     def insert(self, order):
-        """TODO (B): ghi đơn + toàn bộ chi tiết, gán order.id, trả về id.
-
-        Dùng self._db.insert("orders", {...}) (trả id vừa tạo). Không tự commit: OrderService bọc db.transaction().
-        created_at truyền qua utils.dates.db_datetime(order.created_at).
-        """
-        raise NotImplementedError("TODO (B): OrderRepository.insert")
+        order.id = self._db.insert("orders", {
+            "created_at": db_datetime(order.created_at),
+            "user_id": order.user_id,
+            "discount_id": order.discount_id,
+            "total_amount": order.total_amount,
+            "discount_amount": order.discount_amount,
+            "final_amount": order.final_amount,
+        })
+        for d in order.details:
+            self._db.insert("order_details", {
+                "order_id": order.id,
+                "variant_id": d.variant_id,
+                "quantity": d.quantity,
+                "unit_price": d.unit_price,
+            })
+        return order.id
 
     def find_by_id(self, order_id):
         """TODO (B): trả về Order đầy đủ (kèm details, seller_name, discount_code) hoặc None."""

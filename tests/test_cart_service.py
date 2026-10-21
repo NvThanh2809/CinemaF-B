@@ -1,68 +1,84 @@
-"""Test cho CartService (hóa đơn tạm). Lớp này không đụng DB nên chỉ cần CartService() và OrderDetail(...).
-
-Người phụ trách: THÀNH VIÊN B.
-Dùng OrderDetail(variant_id, tên, size, đơn giá, số lượng) và PercentDiscount / FixedDiscount.
-
-Cách làm: mỗi test bên dưới là MỘT hành vi cần kiểm tra. Viết xong test nào thì xóa dòng @TODO của test đó
-và thay phần mô tả bằng code kiểm tra thật. Chạy: python -m unittest discover -s tests -t .
-"""
 import unittest
 
-from tests.helpers import Env
+from models.discount import FixedDiscount, PercentDiscount
+from models.order_detail import OrderDetail
+from services.cart_service import CartService
+from utils.exceptions import DiscountError
 
-TODO = unittest.skip("TODO (B): chưa viết test này")
+
+def item(variant_id=1, price=50000, qty=1, name="Bỏng ngô phô mai", size="L"):
+    return OrderDetail(variant_id, name, size, price, qty)
 
 
 class CartServiceTest(unittest.TestCase):
     def setUp(self):
-        self.env = Env()
+        self.cart = CartService()
 
-    def tearDown(self):
-        self.env.close()
-
-    @TODO
     def test_total_and_subtotal(self):
-        """2 dòng hàng: thành tiền từng dòng và tổng tiền đúng."""
+        self.cart.add_item(item(1, 50000, 2))
+        self.cart.add_item(item(2, 25000, 1, "Coca-Cola", "M"))
+        self.assertEqual(self.cart.total, 125000)
+        self.assertEqual(self.cart.items[0].subtotal, 100000)
 
-    @TODO
     def test_same_variant_merges_quantity(self):
-        """Thêm cùng variant_id hai lần thì chỉ còn 1 dòng, số lượng cộng dồn."""
+        self.cart.add_item(item(1, 50000, 1))
+        self.cart.add_item(item(1, 50000, 2))
+        self.assertEqual(len(self.cart.items), 1)
+        self.assertEqual(self.cart.items[0].quantity, 3)
 
-    @TODO
     def test_update_quantity_and_remove(self):
-        """update_quantity đổi số lượng; số lượng 0 thì xóa dòng."""
+        self.cart.add_item(item(1, 50000, 1))
+        self.cart.add_item(item(2, 25000, 1))
+        self.cart.update_quantity(0, 4)
+        self.assertEqual(self.cart.items[0].quantity, 4)
+        self.cart.update_quantity(0, 0)
+        self.assertEqual(len(self.cart.items), 1)
 
-    @TODO
     def test_invalid_quantity_rejected(self):
-        """add_item với số lượng 0 ném ValueError."""
+        with self.assertRaises(ValueError):
+            self.cart.add_item(item(1, 50000, 0))
 
-    @TODO
     def test_percent_discount(self):
-        """Giảm 10% đơn 150.000đ: giảm 15.000đ, phải trả 135.000đ."""
+        self.cart.add_item(item(1, 50000, 3))
+        self.cart.apply_discount(PercentDiscount(1, "GIAM10", 10, 100000))
+        self.assertEqual(self.cart.discount_amount, 15000)
+        self.assertEqual(self.cart.final_amount, 135000)
 
-    @TODO
     def test_fixed_discount_never_exceeds_total(self):
-        """Mã giảm cố định lớn hơn tổng tiền: phải trả 0đ, không âm."""
+        self.cart.add_item(item(1, 10000, 1))
+        self.cart.apply_discount(FixedDiscount(1, "BIG", 50000, 0))
+        self.assertEqual(self.cart.final_amount, 0)
 
-    @TODO
     def test_discount_below_minimum_rejected(self):
-        """Đơn chưa đạt giá trị tối thiểu: apply_discount ném DiscountError."""
+        self.cart.add_item(item(1, 50000, 1))
+        with self.assertRaises(DiscountError):
+            self.cart.apply_discount(PercentDiscount(1, "GIAM10", 10, 100000))
 
-    @TODO
     def test_only_one_discount_per_order(self):
-        """Áp mã thứ hai thì thay mã thứ nhất (mỗi đơn tối đa 1 mã)."""
+        self.cart.add_item(item(1, 50000, 3))
+        self.cart.apply_discount(PercentDiscount(1, "A", 10, 0))
+        self.cart.apply_discount(FixedDiscount(2, "B", 20000, 0))
+        self.assertEqual(self.cart.discount.code, "B")
 
-    @TODO
     def test_discount_becomes_invalid_after_removing_items(self):
-        """Bớt hàng làm đơn dưới mức tối thiểu: discount_still_valid False và discount_amount về 0."""
+        self.cart.add_item(item(1, 50000, 2))
+        self.cart.apply_discount(PercentDiscount(1, "GIAM10", 10, 100000))
+        self.cart.update_quantity(0, 1)
+        self.assertFalse(self.cart.discount_still_valid)
+        self.assertEqual(self.cart.discount_amount, 0)
 
-    @TODO
     def test_clear_removes_items_and_discount(self):
-        """clear() xóa cả hàng lẫn mã ưu đãi."""
+        self.cart.add_item(item(1, 50000, 3))
+        self.cart.apply_discount(PercentDiscount(1, "A", 10, 0))
+        self.cart.clear()
+        self.assertTrue(self.cart.is_empty)
+        self.assertIsNone(self.cart.discount)
+        self.assertEqual(self.cart.final_amount, 0)
 
-    @TODO
     def test_items_returns_a_copy(self):
-        """Sửa danh sách trả về từ .items không làm thay đổi giỏ hàng (đóng gói)."""
+        self.cart.add_item(item(1, 50000, 1))
+        self.cart.items.clear()
+        self.assertEqual(len(self.cart.items), 1)
 
 
 if __name__ == "__main__":
