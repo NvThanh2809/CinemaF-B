@@ -3,11 +3,11 @@
 Người phụ trách: THÀNH VIÊN B.
 Phụ thuộc: ProductRepository.decrease_stock (A), AuthService.require_login (C, người bán = người đang đăng nhập).
 """
-from datetime import datetime  # noqa: F401  (B dùng khi code)
+from datetime import datetime
 
-from models.order import Order  # noqa: F401
-from models.order_detail import OrderDetail  # noqa: F401
-from utils.exceptions import DiscountError, EmptyCartError  # noqa: F401
+from models.order import Order
+from models.order_detail import OrderDetail
+from utils.exceptions import DiscountError, EmptyCartError
 
 
 class OrderService:
@@ -18,14 +18,35 @@ class OrderService:
         self._auth = auth
 
     def checkout(self, cart):
-        """TODO (B): thanh toán một CartService, trả về Order đã lưu (có id).
+        seller = self._auth.require_login()
+        if cart.is_empty:
+            raise EmptyCartError("Đơn hàng chưa có mặt hàng nào")
+        if not cart.discount_still_valid:
+            raise DiscountError("Đơn hàng không còn đủ điều kiện dùng mã ưu đãi, hãy bỏ mã và thử lại")
 
-        Các bước: require_login -> giỏ rỗng thì EmptyCartError -> mã không còn hợp lệ thì DiscountError
-        -> dựng Order (user_id = người bán) -> BỌC TRONG `with self._db.transaction():`
-        trừ kho từng dòng (nên sắp xếp theo variant_id để tránh deadlock) rồi order_repo.insert
-        -> cart.clear(). Thiếu hàng thì InsufficientStockError và rollback toàn bộ.
-        """
-        raise NotImplementedError("TODO (B): OrderService.checkout")
+        discount = cart.discount
+        order = Order(
+            created_at=datetime.now().replace(microsecond=0),
+            user_id=seller.id,
+            seller_name=seller.full_name,
+            total_amount=cart.total,
+            discount_amount=cart.discount_amount,
+            final_amount=cart.final_amount,
+            details=[
+                OrderDetail(d.variant_id, d.product_name, d.size, d.unit_price, d.quantity)
+                for d in cart.items
+            ],
+            discount_id=discount.id if discount else None,
+            discount_code=discount.code if discount else None,
+        )
+
+        with self._db.transaction():
+            for d in sorted(order.details, key=lambda x: x.variant_id):
+                self._product_repo.decrease_stock(d.variant_id, d.quantity)
+            self._order_repo.insert(order)
+
+        cart.clear()
+        return order
 
     def list_orders(self, start, end, user_id=None):
         """TODO (B): chủ cửa hàng xem tất cả (hoặc lọc user_id); nhân viên CHỈ thấy đơn của chính mình."""

@@ -1,13 +1,9 @@
-"""Mã ưu đãi: lớp cha trừu tượng + 2 lớp con (kế thừa, đa hình).
-
-Người phụ trách: THÀNH VIÊN B.
-"""
 from abc import ABC, abstractmethod
+
+from utils.formatter import format_money
 
 
 class Discount(ABC):
-    """Lớp cha. Bảng discounts: id, code, type ('PERCENT' | 'FIXED'), value, min_order_value, active."""
-
     def __init__(self, id, code, min_order_value=0, active=True):
         self.id = id
         self.code = code
@@ -15,21 +11,29 @@ class Discount(ABC):
         self.active = active
 
     def is_applicable(self, total):
-        """TODO (B): True khi mã còn hiệu lực VÀ total >= min_order_value."""
-        raise NotImplementedError("TODO (B): Discount.is_applicable")
+        return self.active and total >= self.min_order_value
 
     @abstractmethod
     def calculate(self, total):
-        """Số tiền được giảm cho đơn có tổng `total` (lớp con cài đặt)."""
+        pass
 
     @abstractmethod
     def describe(self):
-        """Mô tả ngắn hiện trên giao diện, ví dụ 'Giảm 10%' (lớp con cài đặt)."""
+        pass
 
     @staticmethod
     def from_row(row):
-        """TODO (B): factory - từ một dòng DB (dict các cột của bảng discounts) tạo đúng lớp con."""
-        raise NotImplementedError("TODO (B): Discount.from_row")
+        common = dict(
+            id=row["id"],
+            code=row["code"],
+            min_order_value=row["min_order_value"],
+            active=bool(row["active"]),
+        )
+        if row["type"] == "PERCENT":
+            return PercentDiscount(percent=row["value"], **common)
+        if row["type"] == "FIXED":
+            return FixedDiscount(amount=row["value"], **common)
+        raise ValueError(f"Loại mã ưu đãi không hợp lệ: {row['type']}")
 
 
 class PercentDiscount(Discount):
@@ -38,12 +42,10 @@ class PercentDiscount(Discount):
         self.percent = percent
 
     def calculate(self, total):
-        """TODO (B): total * percent / 100 (làm tròn xuống số nguyên đồng)."""
-        raise NotImplementedError("TODO (B): PercentDiscount.calculate")
+        return min(total, int(total * self.percent / 100))
 
     def describe(self):
-        """TODO (B)"""
-        raise NotImplementedError("TODO (B): PercentDiscount.describe")
+        return f"Giảm {self.percent}%"
 
 
 class FixedDiscount(Discount):
@@ -52,9 +54,7 @@ class FixedDiscount(Discount):
         self.amount = amount
 
     def calculate(self, total):
-        """TODO (B): giảm amount nhưng không vượt quá total."""
-        raise NotImplementedError("TODO (B): FixedDiscount.calculate")
+        return min(self.amount, total)
 
     def describe(self):
-        """TODO (B): dùng utils.formatter.format_money."""
-        raise NotImplementedError("TODO (B): FixedDiscount.describe")
+        return f"Giảm {format_money(self.amount)}"

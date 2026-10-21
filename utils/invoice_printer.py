@@ -1,23 +1,58 @@
-"""Xuất hóa đơn dạng văn bản (.txt) và mở/in file.
+import os
+import subprocess
+import sys
 
-Người phụ trách: THÀNH VIÊN B.
-Dùng config.CINEMA_NAME, CINEMA_ADDRESS, INVOICE_DIR và utils.formatter.format_money.
-"""
-from config import CINEMA_ADDRESS, CINEMA_NAME, INVOICE_DIR  # noqa: F401  (B dùng khi code)
-from utils.formatter import format_money  # noqa: F401
+from config import CINEMA_ADDRESS, CINEMA_NAME, INVOICE_DIR
+from utils.dates import DISPLAY_DATETIME
+from utils.formatter import format_money
+
+WIDTH = 52
+
+
+def _money_row(label, value):
+    text = format_money(value)
+    return label + text.rjust(WIDTH - len(label))
 
 
 def render_invoice_text(order):
-    """TODO (B): trả về chuỗi hóa đơn (rộng ~52 ký tự): tên rạp, địa chỉ, số HĐ, ngày giờ, người bán,
-    từng dòng (mã, tên, size, SL x đơn giá, thành tiền), tổng tiền, giảm giá (kèm mã), THANH TOÁN, lời cảm ơn."""
-    raise NotImplementedError("TODO (B): render_invoice_text")
+    line = "-" * WIDTH
+    out = [
+        CINEMA_NAME.center(WIDTH),
+        CINEMA_ADDRESS.center(WIDTH),
+        "",
+        "HÓA ĐƠN BÁN HÀNG".center(WIDTH),
+        f"Số HĐ : {order.id:06d}" if order.id else "Số HĐ : -",
+        f"Ngày  : {order.created_at.strftime(DISPLAY_DATETIME)}",
+    ]
+    if order.seller_name:
+        out.append(f"Thu ngân: {order.seller_name}")
+    out.append(line)
+    for d in order.details:
+        out.append(f"{d.code} {d.product_name} ({d.size})")
+        left = f"   {d.quantity} x {format_money(d.unit_price)}"
+        out.append(left + format_money(d.subtotal).rjust(WIDTH - len(left)))
+    out.append(line)
+    out.append(_money_row("Tổng tiền:", order.total_amount))
+    if order.discount_amount:
+        out.append(_money_row(f"Giảm giá ({order.discount_code}):", -order.discount_amount))
+    out.append(_money_row("THANH TOÁN:", order.final_amount))
+    out.append(line)
+    out.append("Cảm ơn quý khách - Hẹn gặp lại!".center(WIDTH))
+    return "\n".join(out)
 
 
 def save_invoice(order):
-    """TODO (B): lưu hóa đơn ra INVOICE_DIR/hoadon_<id 6 chữ số>.txt (UTF-8), trả về đường dẫn Path."""
-    raise NotImplementedError("TODO (B): save_invoice")
+    INVOICE_DIR.mkdir(parents=True, exist_ok=True)
+    path = INVOICE_DIR / f"hoadon_{order.id:06d}.txt"
+    path.write_text(render_invoice_text(order), encoding="utf-8")
+    return path
 
 
 def open_invoice(path, print_it=False):
-    """TODO (B): mở file bằng ứng dụng mặc định; print_it=True thì gửi ra máy in (Windows: os.startfile(path, 'print'))."""
-    raise NotImplementedError("TODO (B): open_invoice")
+    path = str(path)
+    if sys.platform.startswith("win"):
+        os.startfile(path, "print" if print_it else "open")
+    elif sys.platform == "darwin":
+        subprocess.Popen(["lpr", path] if print_it else ["open", path])
+    else:
+        subprocess.Popen(["lpr", path] if print_it else ["xdg-open", path])
