@@ -36,12 +36,12 @@ DEFAULT_STAFF = {"username": "nhanvien", "password": "nv123456", "full_name": "N
 #   "OWNER": bỏ qua màn hình đăng nhập, vào thẳng với tài khoản chủ cửa hàng (admin)
 #   "STAFF": bỏ qua màn hình đăng nhập, vào thẳng với tài khoản nhân viên (nhanvien)
 #   ""     : đăng nhập THẬT qua AuthService (đặt như vậy khi C làm xong đăng nhập và BẮT BUỘC khi nộp bài)
-DEV_LOGIN = os.getenv("CINEMA_DEV_LOGIN", "ANY")
+DEV_LOGIN = ""
 
 # Cấu hình riêng từng máy (tên server, tài khoản SQL, mật khẩu SQL, DEV_LOGIN...): tạo file config_local.py
 # cùng thư mục với config.py (xem config_local.example.py). File này nằm trong .gitignore nên không bị đẩy lên Git,
 # và các giá trị trong đó GHI ĐÈ lên các giá trị ở trên (kể cả biến môi trường CINEMA_*).
-try:
-    from config_local import *  # noqa: F401,F403
-except ImportError:
-    pass
+# try:
+#     from config_local import *  # noqa: F401,F403
+# except ImportError:
+#     pass

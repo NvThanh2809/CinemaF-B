@@ -14,8 +14,8 @@ MIN_PASSWORD_LENGTH = 6
 
 
 def validate_password(password):
-    """TODO (C): ném ValidationError nếu mật khẩu ngắn hơn MIN_PASSWORD_LENGTH ký tự (UserService cũng gọi hàm này)."""
-    raise NotImplementedError("TODO (C): validate_password")
+    if len(password or "") < MIN_PASSWORD_LENGTH:
+        raise ValidationError(f"Mật khẩu phải có ít nhất {MIN_PASSWORD_LENGTH} ký tự")
 
 
 class AuthService:
@@ -47,18 +47,26 @@ class AuthService:
             raise PermissionDenied("Chỉ chủ cửa hàng mới được thực hiện thao tác này")
         return user
 
-    # ---- phần C làm ----
     def login(self, username, password):
-        """TODO (C): đăng nhập, trả về User và gán self._current.
-
-        - Chuẩn hóa username (strip + chữ thường); trống thì AuthError("Vui lòng nhập tên đăng nhập và mật khẩu")
-        - Sai tên hoặc sai mật khẩu: CÙNG MỘT thông báo "Sai tên đăng nhập hoặc mật khẩu" (không lộ tài khoản có tồn tại)
-        - Tài khoản bị khóa (active = False): AuthError("Tài khoản đã bị khóa, ...")
-        - Dùng utils.security.verify_password(password, user.password_hash)
-        """
-        raise NotImplementedError("TODO (C): AuthService.login")
+        username = (username or "").strip().lower()
+        if not username or not password:
+            raise AuthError("Vui lòng nhập tên đăng nhập và mật khẩu")
+        user = self._repo.find_by_username(username)
+        if user is None or not verify_password(password, user.password_hash):
+            raise AuthError("Sai tên đăng nhập hoặc mật khẩu")
+        if not user.active:
+            raise AuthError("Tài khoản đã bị khóa, vui lòng liên hệ chủ cửa hàng")
+        self._current = user
+        return user
 
     def change_password(self, old_password, new_password):
-        """TODO (C): đổi mật khẩu của chính mình: kiểm tra mật khẩu cũ, validate_password mới, mới phải khác cũ,
-        lưu hash mới (utils.security.hash_password) bằng UserRepository.update_password và cập nhật self._current."""
-        raise NotImplementedError("TODO (C): AuthService.change_password")
+        current = self.require_login()
+        user = self._repo.find_by_id(current.id)   # đọc lại DB để lấy password mới nhất
+        if user is None or not verify_password(old_password or "", user.password_hash):
+            raise AuthError("Mật khẩu hiện tại không đúng")
+        validate_password(new_password)
+        if new_password == old_password:
+            raise ValidationError("Mật khẩu mới phải khác mật khẩu hiện tại")
+        new_hash = hash_password(new_password)
+        self._repo.update_password(user.id, new_hash)
+        current.password_hash = new_hash
