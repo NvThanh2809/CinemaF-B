@@ -135,7 +135,8 @@ class BarChart(tk.Canvas):
         n = len(self._values)
         slot = (right - left) / n
         bar_w = max(2, min(48, slot * 0.62))
-        label_every = max(1, int(n / max(1, (right - left) / 52)))
+        fit = max(1, int((right - left) / 52))  # số nhãn tối đa đặt vừa trên trục (mỗi nhãn rộng ~52px)
+        label_every = max(1, -(-n // fit))      # làm tròn LÊN để các nhãn không đè lên nhau
         for i, (label, value) in enumerate(zip(self._labels, self._values)):
             cx = left + slot * (i + 0.5)
             y = bottom - (bottom - top) * value / axis_max
