@@ -12,6 +12,15 @@ from utils.security import hash_password, verify_password  # noqa: F401
 
 MIN_PASSWORD_LENGTH = 6
 
+_dummy_hash = None
+
+
+def _get_dummy_hash():
+    global _dummy_hash
+    if _dummy_hash is None:
+        _dummy_hash = hash_password("dummy_password_for_timing_safety")
+    return _dummy_hash
+
 
 def validate_password(password):
     if len(password or "") < MIN_PASSWORD_LENGTH:
@@ -52,7 +61,10 @@ class AuthService:
         if not username or not password:
             raise AuthError("Vui lòng nhập tên đăng nhập và mật khẩu")
         user = self._repo.find_by_username(username)
-        if user is None or not verify_password(password, user.password_hash):
+        # Băm giả khi sai tên đăng nhập để không lộ tài khoản có tồn tại (chống timing attack)
+        target_hash = user.password_hash if user else _get_dummy_hash()
+        valid = verify_password(password, target_hash)
+        if user is None or not valid:
             raise AuthError("Sai tên đăng nhập hoặc mật khẩu")
         if not user.active:
             raise AuthError("Tài khoản đã bị khóa, vui lòng liên hệ chủ cửa hàng")

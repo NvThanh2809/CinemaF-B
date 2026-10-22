@@ -21,7 +21,7 @@ class InvoiceView(BaseDialog):
 
         paper = tk.Text(
             card, width=54, height=24, font=("Consolas", 10), wrap="none", relief="flat",
-            bg=C["stripe"], highlightthickness=1, highlightbackground=C["border"], padx=10, pady=10,
+            bg=C["invoice_bg"], highlightthickness=1, highlightbackground=C["border"], padx=10, pady=10,
         )
         paper.insert("1.0", render_invoice_text(order))
         paper.config(state="disabled")

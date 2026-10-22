@@ -31,7 +31,7 @@ class HomePage(Page):
         self._cards = {}
         for i, (key, title, accent) in enumerate((
                 ("today_net", "Doanh thu hôm nay", C["success"]),
-                ("today_orders", "Số đơn hôm nay", C["primary"]),
+                ("today_orders", "Số đơn hôm nay", C["stat_card"]),
                 ("month_net", "Doanh thu tháng này", C["success"]),
                 ("month_avg", "Giá trị đơn trung bình (tháng)", C["warning"]))):
             card = StatCard(stats, title, accent=accent)

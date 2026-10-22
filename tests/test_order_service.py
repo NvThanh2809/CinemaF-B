@@ -3,9 +3,7 @@ import unittest
 from models.order_detail import OrderDetail
 from services.cart_service import CartService
 from tests.helpers import Env
-from utils.exceptions import AuthError, DiscountError, EmptyCartError, InsufficientStockError
-
-TODO = unittest.skip("TODO (B): chưa viết test này")
+from utils.exceptions import AuthError, DiscountError, EmptyCartError, InsufficientStockError, PermissionDenied
 
 
 class OrderServiceTest(unittest.TestCase):
@@ -110,9 +108,50 @@ class OrderServiceTest(unittest.TestCase):
         )
         self.assertEqual(saved_price, 50000)
 
-    @TODO
     def test_staff_only_sees_own_orders_owner_sees_all(self):
         """Nhân viên chỉ thấy đơn của mình và không xem được đơn người khác (PermissionDenied); chủ cửa hàng thấy tất cả và lọc được theo nhân viên."""
+        # 1. Nhân viên tạo đơn
+        self._add("Coca-Cola", "M", 1)
+        staff_order = self.env.orders.checkout(self.cart)
+
+        # 2. Chủ quán đăng nhập và tạo đơn
+        self.env.login("admin")
+        self._add("Bỏng ngô phô mai", "L", 1)
+        owner_order = self.env.orders.checkout(self.cart)
+
+        # Chủ quán thấy tất cả các đơn
+        all_orders = self.env.orders.list_orders(staff_order.created_at.date(), owner_order.created_at.date())
+        all_ids = [o.id for o in all_orders]
+        self.assertIn(staff_order.id, all_ids)
+        self.assertIn(owner_order.id, all_ids)
+
+        # Chủ quán lọc theo nhân viên
+        staff_orders = self.env.orders.list_orders(
+            staff_order.created_at.date(), owner_order.created_at.date(), user_id=staff_order.user_id
+        )
+        self.assertEqual([o.id for o in staff_orders], [staff_order.id])
+
+        # Chủ quán xem chi tiết đơn của cả hai
+        self.assertIsNotNone(self.env.orders.get_order(staff_order.id))
+        self.assertIsNotNone(self.env.orders.get_order(owner_order.id))
+
+        # 3. Nhân viên đăng nhập lại
+        self.env.login("nhanvien")
+        my_orders = self.env.orders.list_orders(staff_order.created_at.date(), owner_order.created_at.date())
+        self.assertEqual([o.id for o in my_orders], [staff_order.id])
+
+        # Dù truyền user_id của chủ quán, nhân viên vẫn chỉ thấy đơn của mình
+        attempt_orders = self.env.orders.list_orders(
+            staff_order.created_at.date(), owner_order.created_at.date(), user_id=owner_order.user_id
+        )
+        self.assertEqual([o.id for o in attempt_orders], [staff_order.id])
+
+        # Nhân viên xem được đơn của mình
+        self.assertEqual(self.env.orders.get_order(staff_order.id).id, staff_order.id)
+
+        # Nhân viên xem đơn người khác bị PermissionDenied
+        with self.assertRaises(PermissionDenied):
+            self.env.orders.get_order(owner_order.id)
 
 
 if __name__ == "__main__":
