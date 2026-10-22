@@ -180,7 +180,7 @@ class ReportsPage(Page):
                 (rank, name, r.username, "Chủ cửa hàng" if r.role == "OWNER" else "Nhân viên", r.order_count,
                  format_money(r.gross), format_money(r.discount), format_money(r.net)),
                 iid=str(r.user_id), tags=() if r.order_count else ("muted",))
-        self._staff_chart.set_data([r.username for r in rows], [r.net for r in rows],
+        self._staff_chart.set_data([r.full_name for r in rows], [r.net for r in rows],
                                    [f"{r.full_name}: {format_money(r.net)} ({r.order_count} đơn)" for r in rows])
 
     def _open_staff_detail(self):

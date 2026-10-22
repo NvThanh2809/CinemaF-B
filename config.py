@@ -6,7 +6,7 @@ BASE_DIR = Path(__file__).resolve().parent
 INVOICE_DIR = BASE_DIR / "invoices"
 
 APP_TITLE = "Cinema F&B - Bán đồ ăn uống tại rạp"
-CINEMA_NAME = "RẠP CHIẾU PHIM DEMO"
+CINEMA_NAME = "RẠP CHIẾU PHIM"
 CINEMA_ADDRESS = "123 Đường ABC, Hà Nội"
 
 # ---------------------------------------------------------------- Cơ sở dữ liệu

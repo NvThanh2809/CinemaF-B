@@ -1,133 +1,212 @@
-# Cinema F&B - Khung dự án (BTL Python, nhóm 3 người)
+# Cinema F&B – Quản lý bán đồ ăn, thức uống tại rạp chiếu phim
 
-Ứng dụng desktop **Tkinter + SQL Server** cho quầy bán đồ ăn uống ở rạp chiếu phim. Đây là **khung ban đầu**:
-giao diện chung và kết nối SQL Server đã chạy được, còn mọi chức năng của từng thành viên là **file rỗng có sẵn chữ ký hàm
-và danh sách việc cần làm**. Mở file của mình, thấy `TODO (A|B|C)` là biết phải code gì.
+Ứng dụng **desktop** (Python + Tkinter) cho quầy bán đồ ăn, thức uống ở rạp chiếu phim: nhân viên lập đơn nhanh tại quầy,
+chủ cửa hàng quản lý tài khoản và theo dõi doanh số. Dữ liệu lưu trên **SQL Server**.
 
-## 1. Chạy lần đầu (Windows, PowerShell)
+> Bài tập lớn môn **Lập trình Python** – nhóm 3 thành viên.
 
-1. Cài **Python 3.9+** (tick *Add python.exe to PATH*; nếu lệnh `python` không nhận thì dùng `py`), **SQL Server Express** và
-   **ODBC Driver 18 for SQL Server**.
-2. Trong thư mục dự án:
+---
 
+## 1. Tính năng
+
+### Dành cho mọi tài khoản (nhân viên và chủ cửa hàng)
+| Chức năng | Mô tả |
+|---|---|
+| **Đăng nhập** | Tên đăng nhập + mật khẩu; thông báo lỗi chung khi sai (không lộ tài khoản có tồn tại), tài khoản bị khóa không vào được |
+| **Tổng quan** | Doanh thu và số đơn hôm nay, doanh thu tháng này, giá trị đơn trung bình, biểu đồ 14 ngày gần nhất |
+| **Bán hàng** | Tìm sản phẩm (không phân biệt hoa thường và dấu tiếng Việt), chọn size, thêm vào giỏ, áp mã ưu đãi, thanh toán |
+| **Lịch sử đơn hàng** | Xem lại đơn đã bán và hóa đơn chi tiết; nhân viên chỉ thấy đơn của chính mình |
+| **Đổi mật khẩu** | Nhập mật khẩu cũ, mật khẩu mới ít nhất 6 ký tự và phải khác mật khẩu cũ |
+
+### Chỉ dành cho chủ cửa hàng
+| Chức năng | Mô tả |
+|---|---|
+| **Quản lý tài khoản** | Thêm, sửa, khóa/mở khóa, xóa tài khoản; đặt lại mật khẩu; tìm kiếm không dấu |
+| **Doanh số – theo thời gian** | Toàn cửa hàng hoặc từng nhân viên, xem **theo ngày** hoặc **theo tháng**, chọn khoảng ngày tùy ý, biểu đồ cột và bảng chi tiết |
+| **Doanh số – so sánh nhân viên** | Xếp hạng nhân viên theo doanh thu thực thu, bấm đúp để xem chi tiết một người |
+
+### Các quy tắc nghiệp vụ đáng chú ý
+- Mã ưu đãi có hai loại: **giảm theo phần trăm** và **giảm số tiền cố định**, kèm giá trị đơn tối thiểu và trạng thái còn/hết hiệu lực.
+- Thanh toán chạy trong **một transaction**: trừ tồn kho và ghi đơn cùng lúc, lỗi giữa chừng thì hoàn tác toàn bộ; không đủ hàng thì từ chối.
+- Tài khoản **đã có đơn hàng** không bị xóa cứng mà chỉ bị khóa, để doanh số cũ vẫn đúng.
+- Luôn còn ít nhất **một chủ cửa hàng đang hoạt động**; không ai tự hạ quyền, tự khóa hay tự xóa tài khoản đang đăng nhập.
+- Khoảng ngày thống kê **gồm cả ngày cuối**; đơn lúc 00:00:00 và 23:59:59 được xếp đúng ngày.
+
+---
+
+## 2. Công nghệ
+
+| Thành phần | Sử dụng |
+|---|---|
+| Ngôn ngữ | Python 3.9 trở lên |
+| Giao diện | Tkinter / ttk (có sẵn trong Python), theme `clam` tự tinh chỉnh |
+| Cơ sở dữ liệu | SQL Server (Express đủ dùng) qua **pyodbc** + *ODBC Driver 18 for SQL Server* |
+| Dự phòng / kiểm thử | SQLite (có sẵn trong Python), chỉ dùng khi chạy test hoặc chưa có SQL Server |
+| Băm mật khẩu | PBKDF2-HMAC-SHA256 + salt ngẫu nhiên (thư viện chuẩn `hashlib`) |
+| Kiểm thử | `unittest` (thư viện chuẩn) |
+
+Chỉ có **một thư viện ngoài** cần cài: `pyodbc`.
+
+---
+
+## 3. Kiến trúc
+
+Dự án tổ chức theo **các tầng**, tương tự cách chia package của một dự án Java:
+
+```
+ Giao diện (ui/)  ──►  Service (services/)  ──►  Repository (repositories/)  ──►  Database (database/)
+   Tkinter               luật nghiệp vụ,            câu lệnh SQL                      kết nối, transaction,
+   hiển thị              phân quyền                                                   khác biệt SQL Server/SQLite
+```
+
+- **`ui/`** chỉ hiển thị và gọi service; không viết SQL, không chứa luật nghiệp vụ.
+- **`services/`** chứa luật nghiệp vụ và **kiểm tra quyền** (`require_login`, `require_owner`). Ẩn nút trên giao diện chỉ để cho gọn; chốt chặn thật nằm ở service.
+- **`repositories/`** chỉ chứa SQL, luôn dùng tham số `?` (chống SQL injection).
+- **`models/`** là các lớp dữ liệu (`User`, `Product`, `Order`, `Discount`, ...), có kế thừa và đa hình ở `Discount` (giảm theo % và giảm cố định).
+- **`app_context.py`** là nơi duy nhất lắp ráp repository và service (kiểu "dependency injection" đơn giản).
+- **`utils/`** chứa tiện ích dùng chung: lỗi nghiệp vụ, băm mật khẩu, ngày giờ, định dạng tiền, bỏ dấu tiếng Việt, in hóa đơn.
+
+### Cấu trúc thư mục
+
+```
+cinema_fnb/
+├── main.py                    # điểm khởi chạy
+├── config.py                  # cấu hình chung (không chứa mật khẩu)
+├── config_local.example.py    # mẫu cấu hình riêng từng máy -> copy thành config_local.py
+├── app_context.py             # lắp ráp các tầng
+├── requirements.txt
+├── database/                  # kết nối SQL Server/SQLite, schema, dữ liệu mẫu
+├── models/                    # lớp dữ liệu
+├── repositories/              # truy vấn SQL
+├── services/                  # nghiệp vụ + phân quyền
+├── ui/
+│   ├── app.py, shell.py       # cửa sổ chính, thanh điều hướng dashboard
+│   ├── login_view.py          # màn hình đăng nhập
+│   ├── theme.py, widgets.py   # màu, phông, thẻ, bảng, biểu đồ cột, chọn khoảng ngày
+│   ├── pages/                 # Tổng quan, Bán hàng, Lịch sử đơn, Doanh số, Quản lý tài khoản
+│   └── *_dialog.py ...        # hộp thoại tìm sản phẩm, chọn size, hóa đơn, tài khoản
+└── utils/                     # tiện ích dùng chung
+```
+
+---
+
+## 4. Cơ sở dữ liệu
+
+Database `CinemaFnB`, gồm **7 bảng**, tự tạo ở lần chạy đầu:
+
+| Bảng | Nội dung chính |
+|---|---|
+| `users` | Tài khoản: `username` (duy nhất), `password_hash`, `full_name`, `role` (`OWNER`/`STAFF`), `active`, `created_at` |
+| `categories` | Danh mục: Bỏng ngô, Nước uống, Đồ ăn nhẹ, Combo |
+| `products` | Sản phẩm, thuộc một danh mục |
+| `product_variants` | Biến thể theo **size** (S/M/L): `price`, `stock`; duy nhất theo (sản phẩm, size) |
+| `discounts` | Mã ưu đãi: `code`, `type` (`PERCENT`/`FIXED`), `value`, `min_order_value`, `active` |
+| `orders` | Đơn hàng: `created_at`, `user_id` (người bán), `discount_id`, `total_amount`, `discount_amount`, `final_amount` |
+| `order_details` | Dòng đơn: `variant_id`, `quantity`, `unit_price` (lưu giá tại thời điểm bán) |
+
+Quan hệ: `categories 1–N products 1–N product_variants`, `users 1–N orders`, `discounts 1–N orders`, `orders 1–N order_details N–1 product_variants`.
+
+Dữ liệu mẫu tự nạp: 4 danh mục, 11 sản phẩm (20 biến thể), 4 mã ưu đãi (`GIAM10`, `GIAM20K`, `COMBO15`, `HETHAN` là mã đã hết hạn để thử), và 2 tài khoản.
+
+---
+
+## 5. Cài đặt và chạy (Windows, PowerShell)
+
+### Yêu cầu
+1. **Python 3.9+** (khi cài tick *Add python.exe to PATH*; nếu lệnh `python` không nhận thì dùng `py`).
+2. **SQL Server Express** và **ODBC Driver 18 for SQL Server** của Microsoft.
+
+### Các bước
 ```powershell
 pip install -r requirements.txt
-copy config_local.example.py config_local.py     # rồi mở config_local.py sửa cho đúng máy của bạn
+copy config_local.example.py config_local.py
 python main.py
 ```
 
-- `config.py` chỉ giữ giá trị **mặc định dùng chung** (`localhost\SQLEXPRESS` + Windows Authentication), tuyệt đối không ghi mật khẩu vào đó.
-  Tên server, tài khoản `sa` và mật khẩu thật của máy bạn khai trong `config_local.py` (ghi đè `config.py`,
-  đã nằm trong `.gitignore` nên không bị đẩy lên Git). Máy dùng đúng SQL Express mặc định với Windows Authentication thì không cần file này.
-- Lần chạy đầu app **tự tạo database `CinemaFnB`**, 7 bảng, menu mẫu, 4 mã ưu đãi và 2 tài khoản
-  (`admin` / `admin123` là chủ cửa hàng, `nhanvien` / `nv123456` là nhân viên).
-- Chưa có SQL Server? Chạy tạm bằng SQLite: `$env:CINEMA_DB_ENGINE="sqlite"; python main.py`.
+Lần chạy đầu, ứng dụng **tự tạo database, các bảng và dữ liệu mẫu**.
 
-### Chế độ dev: đăng nhập thử
-Đăng nhập thật là việc của thành viên C nên khung mặc định **hiện màn hình đăng nhập và cho vào bằng TÊN BẤT KỲ**
-(`DEV_LOGIN = "ANY"` trong `config.py`), không kiểm tra mật khẩu, chưa cần tạo tài khoản.
-Gõ `admin` = chủ cửa hàng (đủ 5 trang), gõ tên khác = nhân viên (3 trang, hiển thị đúng tên vừa gõ).
+### Khai báo kết nối SQL Server
+`config.py` chỉ giữ giá trị mặc định (`localhost\SQLEXPRESS` + Windows Authentication). Nếu máy bạn khác, mở `config_local.py` và bỏ dấu `#` ở các dòng cần dùng:
+
+```python
+DB_SERVER = r"TEN-MAY-CUA-BAN\SQLEXPRESS"   # xem trong SSMS, hộp Connect > Server name
+DB_USER = "sa"                               # để trống "" = Windows Authentication
+DB_PASSWORD = "mat-khau-cua-ban"
+```
+
+> `config_local.py` nằm trong `.gitignore` nên **không bị đẩy lên Git**. Đây là nơi duy nhất được ghi mật khẩu SQL thật.
+
+### Chưa có SQL Server?
+Chạy tạm bằng SQLite (dữ liệu lưu trong thư mục `data/`):
+```powershell
+$env:CINEMA_DB_ENGINE="sqlite"; python main.py
+```
+
+### Lỗi thường gặp
+| Hiện tượng | Cách xử lý |
+|---|---|
+| `Python was not found` | Cài Python từ python.org, tick *Add to PATH*; hoặc dùng lệnh `py` |
+| Không kết nối được SQL Server | Kiểm tra dịch vụ **SQL Server (SQLEXPRESS)** đang chạy, tên server trong `config_local.py` đúng, đã cài ODBC Driver 18 |
+| Báo thiếu `tkinter` (Linux) | `sudo apt install python3-tk` |
+
+---
+
+## 6. Tài khoản mặc định
+
+| Tên đăng nhập | Mật khẩu | Vai trò |
+|---|---|---|
+| `admin` | `admin123` | Chủ cửa hàng (thấy đủ 5 trang) |
+| `nhanvien` | `nv123456` | Nhân viên (thấy 3 trang) |
+
+**Hãy đổi mật khẩu ngay sau khi đăng nhập** (nút *Đổi mật khẩu* ở góc trái dưới).
+
+### Phân quyền
+
+| Trang / thao tác | Nhân viên | Chủ cửa hàng |
+|---|:---:|:---:|
+| Tổng quan (số liệu của chính mình) | ✔ | ✔ (cả cửa hàng) |
+| Bán hàng | ✔ | ✔ |
+| Lịch sử đơn hàng | Chỉ đơn của mình | Tất cả đơn |
+| Đổi mật khẩu của mình | ✔ | ✔ |
+| Doanh số | ✘ | ✔ |
+| Quản lý tài khoản | ✘ | ✔ |
+
+---
+
+## 7. Hướng dẫn sử dụng nhanh
+
+**Bán hàng:** vào *Bán hàng* → gõ tên món (ví dụ `bong ngo`, không cần dấu) → chọn size và số lượng → nhập mã ưu đãi nếu có → *Thanh toán* → xem hóa đơn.
+
+**Quản lý tài khoản (chủ cửa hàng):** vào *Quản lý tài khoản* → *Thêm tài khoản* (tên đăng nhập 3–30 ký tự gồm chữ thường không dấu, số, `_` hoặc `.`); chọn một dòng → *Sửa* để đổi họ tên, vai trò, khóa/mở khóa, đặt lại mật khẩu; *Xóa* hỏi xác nhận, tài khoản đã có đơn hàng sẽ chỉ bị khóa.
+
+**Xem doanh số (chủ cửa hàng):** vào *Doanh số* → tab *Theo thời gian* chọn đối tượng, cách xem (ngày/tháng) và khoảng ngày; tab *So sánh nhân viên* xem bảng xếp hạng và bấm đúp để xem chi tiết một người.
+
+---
+
+## 8. Bảo mật
+
+- Mật khẩu **không lưu dạng gốc**: lưu PBKDF2-SHA256 với salt ngẫu nhiên và số vòng lặp kèm theo chuỗi băm.
+- Toàn bộ truy vấn dùng **tham số `?`**, không nối chuỗi.
+- Quyền được **kiểm ở tầng service**, không chỉ ẩn nút trên giao diện.
+- Thông tin kết nối thật nằm ở `config_local.py` (bị `.gitignore` loại), không có trong mã nguồn đẩy lên Git.
+
+### Chế độ phát triển (không dùng khi nộp/chạy thật)
+Trong lúc code có thể bỏ qua đăng nhập thật bằng biến `DEV_LOGIN` (`config.py` hoặc `config_local.py`):
 
 | `DEV_LOGIN` | Kết quả |
 |---|---|
-| `"ANY"` (mặc định) | Hiện màn hình đăng nhập, gõ tên nào cũng vào, bỏ qua mật khẩu |
-| `"OWNER"` | Bỏ qua đăng nhập, vào thẳng với `admin`, thấy đủ 5 trang |
-| `"STAFF"` | Bỏ qua đăng nhập, vào thẳng với `nhanvien`, chỉ thấy 3 trang (thử phân quyền) |
-| `""` | Đăng nhập THẬT qua `AuthService`. **C đặt lại như vậy khi làm xong đăng nhập, và bắt buộc khi nộp bài** |
+| `"ANY"` | Hiện màn hình đăng nhập, gõ tên nào cũng vào, **bỏ qua mật khẩu** |
+| `"OWNER"` / `"STAFF"` | Vào thẳng với `admin` / `nhanvien` |
+| `""` | **Đăng nhập thật** – bắt buộc đặt như vậy khi nộp bài và khi dùng thật |
 
-Đặt tạm cho một lần chạy: `$env:CINEMA_DEV_LOGIN="STAFF"; python main.py`.
+---
 
-Bấm vào chức năng chưa được code (ví dụ Đăng nhập) sẽ hiện hộp thoại *"Chức năng chưa được code"* kèm tên hàm cần làm, không văng lỗi.
+## 9. Thành viên nhóm
 
-## 2. Đã có sẵn và việc còn lại
-
-| Đã xong, dùng luôn, không cần làm | Khung rỗng, thành viên tự code |
+| Thành viên | Phụ trách |
 |---|---|
-| `main.py`, `config.py`, `app_context.py` (nối các tầng, kèm hàm cho chế độ dev) | `repositories/*` (5 file) |
-| `database/` (kết nối SQL Server/SQLite, schema, dữ liệu mẫu) | `services/*` (7 file) |
-| `ui/`: `app.py`, `login_view.py`, `shell.py` (thanh điều hướng), `theme.py`, `widgets.py` (thẻ, bảng, biểu đồ cột, chọn khoảng ngày), `helpers.py` | `ui/pages/*` (5 trang), 5 hộp thoại / màn hình |
-| `utils/`: lỗi, băm mật khẩu, ngày giờ, định dạng tiền, bỏ dấu tiếng Việt | `utils/invoice_printer.py`, logic của `models/discount.py`, `models/order_detail.py` |
-| `models/` còn lại (chỉ chứa dữ liệu) và phiên đăng nhập trong `AuthService` | 60 test khung (đang `skip`) |
+| *Nguyễn Văn Thành* | Đăng nhập, phân quyền, quản lý tài khoản, thống kê doanh số, trang Tổng quan, kết nối CSDL, cấu hình, giao diện chung (theme, widget)  |
+| *Trần Ngọc Hải* | Sản phẩm và tìm kiếm, lịch sử đơn hàng  |
+| *Phạm Văn Hiệp* | Bán hàng, giỏ hàng, mã ưu đãi, thanh toán, hóa đơn|
 
-`python -m unittest discover -s tests -t .` hiện cho **69 test: 9 chạy thật (hạ tầng) và 60 đang skip**. Mỗi người viết dần cho phần mình
-và xóa dòng `@TODO` của test đã viết xong.
-
-Tìm việc của mình: `Get-ChildItem -Recurse -Filter *.py | Select-String "TODO \(B\)"` (đổi `B` thành `A` hoặc `C`).
-
-## 3. Phân công
-
-### Thành viên A - Sản phẩm và tìm kiếm
-| Tầng | File |
-|---|---|
-| Repository | `repositories/product_repository.py` (`search_products`, `get_variants`, `decrease_stock`) |
-| Service | `services/product_service.py` |
-| Giao diện | `ui/product_search_dialog.py`, `ui/variant_dialog.py` |
-| Test | `tests/test_product_service.py` (7 test) |
-| Người gác file chung | `database/*`, `config.py`, `app_context.py`, `main.py`, `ui/app.py`, `ui/helpers.py`, `ui/pages/base.py`, `ui/theme.py`, `ui/widgets.py`, `requirements.txt` |
-
-Thứ tự gợi ý: repository + service tìm kiếm, rồi `decrease_stock` (B cần để thanh toán, nên làm sớm), rồi hai hộp thoại.
-
-### Thành viên B - Bán hàng, ưu đãi, hóa đơn
-| Tầng | File |
-|---|---|
-| Model | `models/discount.py` (Percent/Fixed), `models/order_detail.py` (`models/order.py` đã có) |
-| Repository | `repositories/discount_repository.py`, `repositories/order_repository.py` |
-| Service | `services/cart_service.py`, `services/discount_service.py`, `services/order_service.py` |
-| Giao diện | `ui/pages/sales_page.py`, `ui/pages/orders_page.py`, `ui/invoice_view.py` |
-| Tiện ích | `utils/invoice_printer.py` |
-| Test | `test_cart_service.py` (11), `test_order_service.py` (8), `test_invoice.py` (3) |
-| Người gác file chung | `utils/exceptions.py`, `utils/dates.py` |
-
-Thứ tự gợi ý: `Discount` + `OrderDetail` + `CartService` (không cần DB, làm và test được ngay), rồi `DiscountService`,
-rồi `OrderRepository` + `OrderService.checkout`, rồi `SalesPage` (cần A xong hai hộp thoại), cuối cùng hóa đơn và `OrdersPage`.
-
-### Thành viên C - Tài khoản, phân quyền, báo cáo
-| Tầng | File |
-|---|---|
-| Model | `models/user.py`, `models/report.py` (đã có sẵn dữ liệu) |
-| Repository | `repositories/user_repository.py`, `repositories/report_repository.py` |
-| Service | `services/auth_service.py` (`login`, `change_password`, `validate_password`), `services/user_service.py`, `services/report_service.py` |
-| Giao diện | `ui/pages/home_page.py`, `ui/pages/reports_page.py`, `ui/pages/accounts_page.py`, `ui/account_dialogs.py` |
-| Test | `test_auth_service.py` (8), `test_user_service.py` (12), `test_report_service.py` (11) |
-| Người gác file chung | `ui/shell.py`, `ui/login_view.py`, `tests/helpers.py`, `README.md`, `.gitignore` |
-
-Thứ tự gợi ý: `UserRepository` + `AuthService.login` (xong thì đặt `DEV_LOGIN = ""` và thử đăng nhập thật), rồi `UserService` +
-trang Quản lý tài khoản, rồi `ReportRepository`/`ReportService` + trang Doanh số, cuối cùng trang Tổng quan.
-
-> **Lưu ý cân tải:** vì `theme.py` và `widgets.py` đã làm sẵn nên A hiện nhẹ hơn B và C khá nhiều. Nếu nhóm muốn cân lại, cách gọn nhất là
-> chuyển cả "Lịch sử đơn hàng" (`ui/pages/orders_page.py` + `OrderRepository.list_orders/find_by_id` + `OrderService.list_orders/get_order`) từ B sang A.
-
-## 4. Hợp đồng giữa các module (đổi chữ ký phải báo nhau trước)
-
-| Bên gọi | Bên được gọi | Nội dung cần giữ |
-|---|---|---|
-| B (`SalesPage`) | A | `ProductService.search(keyword)` trả `list[Product]`; `get_variants(product_id)` trả `list[ProductVariant]`; `ProductSearchDialog(master, products, keyword)` và `VariantDialog(master, product, variants)` trả kết quả qua `.result` |
-| A (`VariantDialog`) | B | Tạo `OrderDetail(variant_id, product_name, size, unit_price, quantity)` |
-| B (`OrderService.checkout`) | A | Gọi `ProductRepository.decrease_stock` trong `with db.transaction():`; thiếu hàng thì `InsufficientStockError` |
-| B (`OrderService`) | C | `AuthService.require_login()` cho biết người bán; `orders.user_id` trỏ tới bảng `users` |
-| C (`ReportRepository`) | B | Đọc các cột `created_at`, `user_id`, `total_amount`, `discount_amount`, `final_amount` của bảng `orders` |
-| B (`OrdersPage`) | C | `UserService.list_users()` để đổ ô lọc nhân viên |
-| Mọi trang | C | Thêm trang mới phải đăng ký trong `ui/shell.py` |
-
-## 5. Quy tắc làm việc bắt buộc
-
-1. **Một chiều phụ thuộc:** `ui` → `services` → `repositories` → `database`. `ui/` không import `repositories` hay `database`, không viết SQL;
-   `services`, `repositories`, `models`, `utils` không import `tkinter`. Repository và service chỉ được tạo trong `app_context.py`.
-2. **Quyền kiểm ở service** (`auth.require_login()` / `auth.require_owner()` ở đầu hàm), không chỉ ẩn nút trên giao diện.
-3. **SQL luôn dùng tham số `?`**; khác biệt SQL Server và SQLite chỉ đi qua các hàm của `Database` (`top`, `limit`, `day_expr`, `month_expr`, `like_no_accent`).
-4. **Ghi nhiều bước thì bọc `with db.transaction():`** (mẫu: thanh toán). Lỗi giữa chừng phải rollback hết.
-5. **Tiền là số nguyên đồng**, hiển thị bằng `format_money`; ngày giờ chỉ xử lý qua `utils/dates.py`.
-6. **Lỗi nghiệp vụ ném lớp con của `AppError`** với thông báo tiếng Việt; giao diện chỉ bắt `AppError`. Không `except Exception: pass`.
-7. **Màu và phông lấy từ `ui/theme.py`**, không gõ mã màu rải rác; hộp thoại kế thừa `BaseDialog`/`FormDialog`, trang mới kế thừa `Page`.
-8. **Đổi bảng/cột phải sửa cả `schema_sqlserver.sql` và `schema_sqlite.sql` trong cùng một PR và báo cả nhóm.** `init_db` chỉ tạo bảng khi chưa có
-   bảng `users`, nên database đã tạo sẽ không tự cập nhật: mọi người xóa database tạo lại, hoặc PR kèm script `ALTER`.
-9. **Không commit** mật khẩu thật, `config_local.py`, `data/`, `invoices/`, `__pycache__`, file `.db`.
-10. **Git:** nhánh `feature/<module>-<mô-tả>`; không push thẳng vào `main`; mỗi PR có ít nhất 1 người khác review, riêng file chung và schema
-    phải có người gác file duyệt; test xanh mới mở PR. Test chạy trên SQLite nên không bắt được lỗi cú pháp T-SQL: PR có câu SQL mới phải tự chạy thử trên SQL Server thật.
-
-## 6. Trước khi nộp bài
-
-- [ ] `DEV_LOGIN = ""` trong `config.py` (tắt chế độ gõ tên nào cũng vào), đăng nhập thật bằng `admin` và `nhanvien` đều chạy.
-- [ ] Đổi mật khẩu mặc định (`admin123`, `nv123456`).
-- [ ] `config.py` không chứa tên máy hay mật khẩu SQL thật (chỉ để trong `config_local.py`), và `config_local.py` không có trong repo Git.
-- [ ] Toàn bộ test xanh, không còn test `@TODO` và không còn `raise NotImplementedError`.
+---
