@@ -7,7 +7,7 @@ from datetime import datetime
 
 from models.order import Order
 from models.order_detail import OrderDetail
-from utils.exceptions import DiscountError, EmptyCartError
+from utils.exceptions import DiscountError, EmptyCartError, PermissionDenied
 
 
 class OrderService:
@@ -49,9 +49,18 @@ class OrderService:
         return order
 
     def list_orders(self, start, end, user_id=None):
-        """TODO (B): chủ cửa hàng xem tất cả (hoặc lọc user_id); nhân viên CHỈ thấy đơn của chính mình."""
-        raise NotImplementedError("TODO (B): OrderService.list_orders")
+        """Chủ cửa hàng xem tất cả (hoặc lọc user_id); nhân viên CHỈ thấy đơn của chính mình."""
+        user = self._auth.require_login()
+        if not user.is_owner:
+            user_id = user.id
+        return self._order_repo.list_orders(start, end, user_id=user_id)
 
     def get_order(self, order_id):
-        """TODO (B): trả về Order; nhân viên không được xem đơn của người khác (PermissionDenied)."""
-        raise NotImplementedError("TODO (B): OrderService.get_order")
+        """Trả về Order; nhân viên không được xem đơn của người khác (PermissionDenied)."""
+        user = self._auth.require_login()
+        order = self._order_repo.find_by_id(order_id)
+        if order is None:
+            return None
+        if not user.is_owner and order.user_id != user.id:
+            raise PermissionDenied("Bạn không có quyền xem đơn hàng của nhân viên khác")
+        return order

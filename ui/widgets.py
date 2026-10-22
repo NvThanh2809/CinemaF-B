@@ -159,7 +159,7 @@ class BarChart(tk.Canvas):
                 ty = max(event.y - 22, 14)
                 self.coords(t, tx, ty)
                 bx0, by0, bx1, by1 = self.bbox(t)
-                rect = self.create_rectangle(bx0 - 8, by0 - 4, bx1 + 8, by1 + 4, fill=C["sidebar_line"], width=0, tags="tip")
+                rect = self.create_rectangle(bx0 - 8, by0 - 4, bx1 + 8, by1 + 4, fill=C["chart_tooltip"], width=0, tags="tip")
                 self.tag_raise(t, rect)
                 return
 

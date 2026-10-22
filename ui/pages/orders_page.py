@@ -80,7 +80,7 @@ class OrdersPage(Page):
             try:
                 users = self.ctx.users.list_users() or []
                 self.staff_map = {"Tất cả": None}
-                for u in users:
+                for u, _ in users:
                     self.staff_map[u.full_name or u.username] = u.id
                 self.cbo_staff["values"] = list(self.staff_map.keys())
             except Exception:
