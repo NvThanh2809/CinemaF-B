@@ -1,4 +1,4 @@
--- Schema SQL Server (T-SQL)
+-- Schema SQL Server (T-SQL) kèm dữ liệu mẫu khởi tạo ban đầu
 -- Quan hệ: categories 1-N products 1-N product_variants 1-N order_details N-1 orders
 --           discounts 1-N orders ; users 1-N orders (nhân viên bán)
 
@@ -70,4 +70,85 @@ CREATE TABLE dbo.order_details (
     quantity   INT NOT NULL CONSTRAINT ck_details_qty CHECK (quantity > 0),
     unit_price INT NOT NULL                                             -- giá tại thời điểm bán
 );
+GO
+
+
+--------------------------------------------------------------------------------
+-- 2. NẠP DỮ LIỆU MẪU (SEED DATA)
+--------------------------------------------------------------------------------
+
+-- Thêm các mã giảm giá
+INSERT INTO dbo.discounts (code, type, value, min_order_value, active) VALUES
+(N'GIAM10', 'PERCENT', 10, 100000, 1),
+(N'GIAM20K', 'FIXED', 20000, 80000, 1),
+(N'COMBO15', 'PERCENT', 15, 150000, 1),
+(N'HETHAN', 'PERCENT', 50, 0, 0);
+GO
+
+-- Thêm Danh mục, Sản phẩm và Biến thể sản phẩm
+DECLARE @cat_bongngo INT, @cat_nuoc INT, @cat_doan INT, @cat_combo INT;
+DECLARE @prod INT;
+
+-- 1. Bỏng ngô
+INSERT INTO dbo.categories (name) VALUES (N'Bỏng ngô');
+SET @cat_bongngo = SCOPE_IDENTITY();
+
+INSERT INTO dbo.products (category_id, name) VALUES (@cat_bongngo, N'Bỏng ngô phô mai');
+SET @prod = SCOPE_IDENTITY();
+INSERT INTO dbo.product_variants (product_id, size, price, stock) VALUES (@prod, 'M', 30000, 100), (@prod, 'L', 50000, 100);
+
+INSERT INTO dbo.products (category_id, name) VALUES (@cat_bongngo, N'Bỏng ngô caramen');
+SET @prod = SCOPE_IDENTITY();
+INSERT INTO dbo.product_variants (product_id, size, price, stock) VALUES (@prod, 'M', 32000, 100), (@prod, 'L', 52000, 100);
+
+INSERT INTO dbo.products (category_id, name) VALUES (@cat_bongngo, N'Bỏng ngô vị mặn');
+SET @prod = SCOPE_IDENTITY();
+INSERT INTO dbo.product_variants (product_id, size, price, stock) VALUES (@prod, 'M', 28000, 100), (@prod, 'L', 45000, 100);
+
+
+-- 2. Nước uống
+INSERT INTO dbo.categories (name) VALUES (N'Nước uống');
+SET @cat_nuoc = SCOPE_IDENTITY();
+
+INSERT INTO dbo.products (category_id, name) VALUES (@cat_nuoc, N'Coca-Cola');
+SET @prod = SCOPE_IDENTITY();
+INSERT INTO dbo.product_variants (product_id, size, price, stock) VALUES (@prod, 'S', 20000, 200), (@prod, 'M', 25000, 200), (@prod, 'L', 30000, 200);
+
+INSERT INTO dbo.products (category_id, name) VALUES (@cat_nuoc, N'Pepsi');
+SET @prod = SCOPE_IDENTITY();
+INSERT INTO dbo.product_variants (product_id, size, price, stock) VALUES (@prod, 'S', 20000, 200), (@prod, 'M', 25000, 200), (@prod, 'L', 30000, 200);
+
+INSERT INTO dbo.products (category_id, name) VALUES (@cat_nuoc, N'Nước suối');
+SET @prod = SCOPE_IDENTITY();
+INSERT INTO dbo.product_variants (product_id, size, price, stock) VALUES (@prod, 'M', 15000, 150);
+
+INSERT INTO dbo.products (category_id, name) VALUES (@cat_nuoc, N'Trà đào');
+SET @prod = SCOPE_IDENTITY();
+INSERT INTO dbo.product_variants (product_id, size, price, stock) VALUES (@prod, 'M', 35000, 80), (@prod, 'L', 45000, 80);
+
+
+-- 3. Đồ ăn nhẹ
+INSERT INTO dbo.categories (name) VALUES (N'Đồ ăn nhẹ');
+SET @cat_doan = SCOPE_IDENTITY();
+
+INSERT INTO dbo.products (category_id, name) VALUES (@cat_doan, N'Xúc xích nướng');
+SET @prod = SCOPE_IDENTITY();
+INSERT INTO dbo.product_variants (product_id, size, price, stock) VALUES (@prod, 'M', 25000, 60);
+
+INSERT INTO dbo.products (category_id, name) VALUES (@cat_doan, N'Khoai tây chiên');
+SET @prod = SCOPE_IDENTITY();
+INSERT INTO dbo.product_variants (product_id, size, price, stock) VALUES (@prod, 'M', 30000, 60), (@prod, 'L', 40000, 60);
+
+
+-- 4. Combo
+INSERT INTO dbo.categories (name) VALUES (N'Combo');
+SET @cat_combo = SCOPE_IDENTITY();
+
+INSERT INTO dbo.products (category_id, name) VALUES (@cat_combo, N'Combo 1 người');
+SET @prod = SCOPE_IDENTITY();
+INSERT INTO dbo.product_variants (product_id, size, price, stock) VALUES (@prod, 'M', 65000, 50);
+
+INSERT INTO dbo.products (category_id, name) VALUES (@cat_combo, N'Combo đôi');
+SET @prod = SCOPE_IDENTITY();
+INSERT INTO dbo.product_variants (product_id, size, price, stock) VALUES (@prod, 'L', 119000, 50);
 GO
